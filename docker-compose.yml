@@ -1,0 +1,64 @@
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: meadowkart_api
+
+    volumes:
+      - .:/var/www/html
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      - database
+      - redis
+
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+
+    container_name: meadowkart_worker
+
+    volumes:
+      - .:/var/www/html
+
+    depends_on:
+      - database
+      - redis
+
+
+  database:
+    image: postgres:16
+
+    container_name: meadowkart_postgres
+
+    environment:
+      POSTGRES_DB: meadowkart
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+
+  redis:
+    image: redis:7
+
+    container_name: meadowkart_redis
+
+    ports:
+      - "6379:6379"
+
+
+volumes:
+
+  postgres_data:
