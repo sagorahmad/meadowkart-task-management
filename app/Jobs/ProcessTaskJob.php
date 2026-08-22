@@ -7,6 +7,7 @@ use App\Models\TaskLog;
 use App\Services\TaskProcessorResolver;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\DB;
 
 
 class ProcessTaskJob implements ShouldQueue
@@ -28,27 +29,41 @@ class ProcessTaskJob implements ShouldQueue
     public function handle(TaskProcessorResolver $resolver)
     {
 
-        $this->task->refresh();
+        $claimed = DB::transaction(function () {
+
+            $task = Task::where('id', $this->task->id)
+                ->lockForUpdate()
+                ->first();
 
 
-        if($this->task->status === 'cancelled')
+            if(
+                !$task ||
+                $task->status === 'cancelled' ||
+                $task->status === 'completed' 
+            ){
+                return false;
+            }
+
+
+            $task->update([
+                'status'=>'processing',
+                'started_at'=>now(),
+                'attempts'=>$task->attempts + 1
+            ]);
+
+
+            return true;
+
+        });
+
+
+
+        if(!$claimed)
         {
             return;
         }
 
-
-        if($this->task->status === 'completed')
-        {
-            return;
-        }
-
-
-        $this->task->update([
-            'status'=>'processing',
-            'started_at'=>now(),
-            'attempts'=>$this->task->attempts + 1
-        ]);
-
+        $this->task = Task::find($this->task->id);
 
         TaskLog::create([
             'task_id'=>$this->task->id,
@@ -63,6 +78,7 @@ class ProcessTaskJob implements ShouldQueue
         $processor->process($this->task);
 
 
+
         $this->task->refresh();
 
 
@@ -72,10 +88,12 @@ class ProcessTaskJob implements ShouldQueue
         }
 
 
+
         $this->task->update([
             'status'=>'completed',
             'completed_at'=>now()
         ]);
+
 
 
         TaskLog::create([
@@ -85,7 +103,6 @@ class ProcessTaskJob implements ShouldQueue
         ]);
 
     }
-
     public function failed(\Throwable $exception): void
     {
 
