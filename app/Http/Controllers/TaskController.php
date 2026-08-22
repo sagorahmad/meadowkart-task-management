@@ -76,12 +76,33 @@ class TaskController extends Controller
         }
 
 
-        return $query
-            ->orderBy(
-                $request->get('sort','created_at'),
-                $request->get('direction','desc')
-            )
-            ->paginate(10);
+       $allowedSorts = [
+        'created_at',
+        'updated_at',
+        'priority',
+        'status'
+    ];
+
+
+    $sort = $request->get('sort','created_at');
+
+    if(!in_array($sort,$allowedSorts))
+    {
+        $sort = 'created_at';
+    }
+
+
+    $direction = $request->get('direction','desc');
+
+    if(!in_array($direction,['asc','desc']))
+    {
+        $direction = 'desc';
+    }
+
+
+    return $query
+    ->orderBy($sort,$direction)
+    ->paginate(10);
     }
 
     public function show(Request $request, Task $task)
