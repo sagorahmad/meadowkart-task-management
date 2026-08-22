@@ -28,6 +28,21 @@ class ProcessTaskJob implements ShouldQueue
     public function handle(TaskProcessorResolver $resolver)
     {
 
+        $this->task->refresh();
+
+
+        if($this->task->status === 'cancelled')
+        {
+            return;
+        }
+
+
+        if($this->task->status === 'completed')
+        {
+            return;
+        }
+
+
         $this->task->update([
             'status'=>'processing',
             'started_at'=>now(),
@@ -43,21 +58,11 @@ class ProcessTaskJob implements ShouldQueue
 
 
 
-        $this->task->refresh();
-
-        if($this->task->status === 'cancelled')
-        {
-            return;
-        }
-
-
-
         $processor = $resolver->resolve($this->task);
 
         $processor->process($this->task);
 
 
-    
         $this->task->refresh();
 
 

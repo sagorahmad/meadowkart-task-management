@@ -14,6 +14,7 @@ class ReportTaskProcessor implements TaskProcessorInterface
             "ReportTaskProcessor executed for task ".$task->id
         );
 
-        sleep(60);
+        sleep(5);
+
     }
 }
