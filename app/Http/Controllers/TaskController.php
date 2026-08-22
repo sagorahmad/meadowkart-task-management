@@ -6,17 +6,83 @@ use App\Models\Task;
 use App\Models\TaskLog;
 use Illuminate\Http\Request;
 use App\Jobs\ProcessTaskJob;
+use Illuminate\Support\Carbon;
 
 class TaskController extends Controller
 {
 
     public function index(Request $request)
     {
-        return Task::where('user_id',$request->user()->id)
-            ->latest()
+        $query = Task::where(
+            'user_id',
+            $request->user()->id
+        );
+
+
+        if($request->filled('status'))
+        {
+            $query->where(
+                'status',
+                $request->status
+            );
+        }
+
+
+        if($request->filled('type'))
+        {
+            $query->where(
+                'type',
+                $request->type
+            );
+        }
+
+
+        if($request->filled('priority'))
+        {
+            $query->where(
+                'priority',
+                $request->priority
+            );
+        }
+
+
+        if($request->filled('search'))
+        {
+            $query->where(
+                'title',
+                'ILIKE',
+                '%'.$request->search.'%'
+            );
+        }
+
+
+        if($request->filled('from'))
+        {
+            $query->where(
+                'created_at',
+                '>=',
+                Carbon::parse($request->from)->startOfDay()
+            );
+        }
+
+
+        if($request->filled('to'))
+        {
+            $query->where(
+                'created_at',
+                '<=',
+                Carbon::parse($request->to)->endOfDay()
+            );
+        }
+
+
+        return $query
+            ->orderBy(
+                $request->get('sort','created_at'),
+                $request->get('direction','desc')
+            )
             ->paginate(10);
     }
-
 
     public function show(Request $request, Task $task)
     {
