@@ -61,7 +61,8 @@ class TaskController extends Controller
         ]);
 
 
-        ProcessTaskJob::dispatch($task);
+        ProcessTaskJob::dispatch($task)->onQueue($task->priority);
+
         return response()->json([
             'id'=>$task->id,
             'status'=>$task->status,
@@ -125,8 +126,7 @@ class TaskController extends Controller
         ]);
 
 
-        ProcessTaskJob::dispatch($task);
-
+        ProcessTaskJob::dispatch($task)->onQueue($task->priority);
 
         return response()->json([
             'message'=>'Task queued for retry',

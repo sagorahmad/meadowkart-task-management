@@ -1,64 +1,59 @@
 services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
 
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+        container_name: meadowkart_api
 
-    container_name: meadowkart_api
+        volumes:
+            - .:/var/www/html
 
-    volumes:
-      - .:/var/www/html
+        ports:
+            - "8000:8000"
 
-    ports:
-      - "8000:8000"
+        depends_on:
+            - database
+            - redis
 
-    depends_on:
-      - database
-      - redis
+    worker:
+        build:
+            context: .
+            dockerfile: Dockerfile.worker
 
+        container_name: meadowkart_worker
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
+        volumes:
+            - .:/var/www/html
+        command: php artisan queue:work --queue=critical,high,normal,low
 
-    container_name: meadowkart_worker
+        depends_on:
+            - database
+            - redis
 
-    volumes:
-      - .:/var/www/html
+    database:
+        image: postgres:16
 
-    depends_on:
-      - database
-      - redis
+        container_name: meadowkart_postgres
 
+        environment:
+            POSTGRES_DB: meadowkart
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: password
 
-  database:
-    image: postgres:16
+        ports:
+            - "5432:5432"
 
-    container_name: meadowkart_postgres
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
 
-    environment:
-      POSTGRES_DB: meadowkart
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+    redis:
+        image: redis:7
 
-    ports:
-      - "5432:5432"
+        container_name: meadowkart_redis
 
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-
-  redis:
-    image: redis:7
-
-    container_name: meadowkart_redis
-
-    ports:
-      - "6379:6379"
-
+        ports:
+            - "6379:6379"
 
 volumes:
-
-  postgres_data:
+    postgres_data:
