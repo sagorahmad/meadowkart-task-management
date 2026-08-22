@@ -112,19 +112,16 @@ class TaskController extends Controller
             ],400);
         }
 
-
+        TaskLog::create([
+            'task_id'=>$task->id,
+            'event'=>'retry_attempt',
+            'message'=>'Retry attempt #'.($task->attempts + 1)
+        ]);
         $task->update([
             'status'=>'pending',
             'attempts'=>0,
             'error_message'=>null,
             'failed_at'=>null
-        ]);
-
-
-        TaskLog::create([
-            'task_id'=>$task->id,
-            'event'=>'retry',
-            'message'=>'Task queued for retry'
         ]);
 
 
