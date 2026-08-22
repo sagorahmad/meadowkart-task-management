@@ -10,9 +10,11 @@ class DataProcessingTaskProcessor implements TaskProcessorInterface
 
     public function process(Task $task): void
     {
-        sleep(5);
+        \Log::info(
+            "DataProcessingTaskProcessor executed for task ".$task->id
+        );
 
-        // simulate data processing
+        sleep(5);
     }
 
 }

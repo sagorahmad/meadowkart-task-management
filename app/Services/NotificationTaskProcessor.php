@@ -10,9 +10,11 @@ class NotificationTaskProcessor implements TaskProcessorInterface
 
     public function process(Task $task): void
     {
-        sleep(5);
+        \Log::info(
+            "NotificationTaskProcessor executed for task ".$task->id
+        );
 
-        // simulate sending notifications
+        sleep(5);
     }
 
 }

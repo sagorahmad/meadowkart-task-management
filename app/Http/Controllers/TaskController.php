@@ -52,9 +52,16 @@ class TaskController extends Controller
             'event'=>'created',
             'message'=>'Task created'
         ]);
+
+
+        TaskLog::create([
+            'task_id'=>$task->id,
+            'event'=>'queued',
+            'message'=>'Task added to queue'
+        ]);
+
+
         ProcessTaskJob::dispatch($task);
-
-
         return response()->json([
             'id'=>$task->id,
             'status'=>$task->status,
@@ -109,10 +116,21 @@ class TaskController extends Controller
         $task->update([
             'status'=>'pending',
             'attempts'=>0,
-            'error_message'=>null
+            'error_message'=>null,
+            'failed_at'=>null
         ]);
 
+
+        TaskLog::create([
+            'task_id'=>$task->id,
+            'event'=>'retry',
+            'message'=>'Task queued for retry'
+        ]);
+
+
         ProcessTaskJob::dispatch($task);
+
+
         return response()->json([
             'message'=>'Task queued for retry',
             'task'=>$task
