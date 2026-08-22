@@ -77,15 +77,19 @@ class ProcessTaskJob implements ShouldQueue
 
         $processor->process($this->task);
 
-
-
         $this->task->refresh();
-
 
         if($this->task->status === 'cancelled')
         {
+            TaskLog::create([
+                'task_id'=>$this->task->id,
+                'event'=>'cancelled',
+                'message'=>'Task was cancelled during processing'
+            ]);
+
             return;
         }
+
 
 
 
