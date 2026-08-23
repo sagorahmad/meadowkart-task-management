@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Models\TaskBatch;
 use App\Jobs\ProcessTaskJob;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TaskBatchController extends Controller
 {
@@ -16,55 +17,63 @@ class TaskBatchController extends Controller
 
         $data=$request->validate([
 
-            'tasks'=>'required|array',
+            'tasks'=>'required|array|min:1',
+            'tasks.*.type'=>'required|string',
+            'tasks.*.title'=>'required|string',
+            'tasks.*.priority'=>'nullable|in:low,normal,high,critical',
+            'tasks.*.payload'=>'nullable|array',
 
         ]);
 
 
-        $batch=TaskBatch::create([
+        DB::transaction(function () use ($request, $data, &$batch, &$tasks) {
 
-        'user_id'=>$request->user()->id,
+        $batch = TaskBatch::create([
 
-        'total_tasks'=>count($data['tasks'])
+            'user_id'=>$request->user()->id,
+            'total_tasks'=>count($data['tasks'])
 
         ]);
 
+
+        $tasks = [];
 
         foreach($data['tasks'] as $taskData)
         {
 
-
             $task = Task::create([
 
                 'user_id'=>$request->user()->id,
-
                 'batch_id'=>$batch->id,
-
                 'type'=>$taskData['type'],
-
                 'title'=>$taskData['title'],
-
                 'payload'=>$taskData['payload'] ?? null,
-
                 'priority'=>$taskData['priority'] ?? 'normal',
-
                 'status'=>'pending'
 
             ]);
 
-            ProcessTaskJob::dispatch($task)->onQueue($task->priority);
-
+            $tasks[] = $task;
 
         }
 
+    });
 
-        return response()->json([
 
-            'batch_id'=>$batch->id,
+    foreach($tasks as $task)
+    {
+        ProcessTaskJob::dispatch($task)
+            ->onQueue($task->priority);
+    }
 
-            'message'=>'Batch created successfully'
 
-        ],201);
+            return response()->json([
+
+                'batch_id'=>$batch->id,
+
+                'message'=>'Batch created successfully'
+
+            ],201);
 
 
     }
@@ -90,9 +99,11 @@ class TaskBatchController extends Controller
 
             'progress'=>
 
-            round(
-                ($batch->completed_tasks / $batch->total_tasks)*100
-            ),
+            $batch->total_tasks > 0
+                ?
+                round(($batch->completed_tasks / $batch->total_tasks) * 100)
+                :
+                0,
 
             'status'=>$batch->status
 

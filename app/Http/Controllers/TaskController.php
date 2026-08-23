@@ -7,6 +7,7 @@ use App\Models\TaskLog;
 use Illuminate\Http\Request;
 use App\Jobs\ProcessTaskJob;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class TaskController extends Controller
 {
@@ -116,12 +117,18 @@ class TaskController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'type'=>'required|string',
+            'type'=>[
+                'required',
+                'string',
+                'in:report_generation,bulk_notification,data_processing'
+            ],
             'title'=>'required|string',
             'payload'=>'nullable|array',
             'priority'=>'nullable|in:low,normal,high,critical'
         ]);
 
+
+        DB::transaction(function () use ($request, $data, &$task) {
 
         $task = Task::create([
 
@@ -133,6 +140,7 @@ class TaskController extends Controller
             'status'=>'pending'
 
         ]);
+
 
         TaskLog::create([
             'task_id'=>$task->id,
@@ -147,8 +155,11 @@ class TaskController extends Controller
             'message'=>'Task added to queue'
         ]);
 
+    });
 
-        ProcessTaskJob::dispatch($task)->onQueue($task->priority);
+
+    ProcessTaskJob::dispatch($task)
+    ->onQueue($task->priority);
 
         return response()->json([
             'id'=>$task->id,
