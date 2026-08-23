@@ -22,6 +22,18 @@ Start Docker containers:
 docker compose up -d --build
 ```
 
+Install PHP dependencies:
+
+```bash
+docker compose run --rm app composer install
+```
+
+Restart containers:
+
+```bash
+docker compose up -d
+```
+
 Generate application key:
 
 ```bash
