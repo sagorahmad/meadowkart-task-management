@@ -246,11 +246,21 @@ A completed task cannot be processed again.
 
 # Additional Features Implemented
 
--   Laravel Horizon monitoring
--   Scheduled stale task cleanup
--   Rate limiting for task creation
--   Batch task processing
--   Task execution history
+## Bonus 1 — Laravel Horizon
+
+Implemented Laravel Horizon for queue monitoring and worker management.
+
+## Bonus 2 — Scheduled Tasks
+
+Implemented automatic cleanup and retry of stale tasks.
+
+## Bonus 3 — Rate Limiting
+
+Implemented rate limiting to prevent excessive task creation requests.
+
+## Bonus 4 — Batch Processing
+
+Implemented batch task creation with batch-level progress tracking.
 
 ---
 
