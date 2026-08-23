@@ -98,8 +98,31 @@ class ProcessTaskJob implements ShouldQueue
             'completed_at'=>now()
         ]);
 
+        if($this->task->batch_id)
+        {
+
+            $batch = $this->task->batch;
 
 
+            $batch->increment('completed_tasks');
+
+
+            $batch->refresh();
+
+
+            if(
+                $batch->completed_tasks >=
+                $batch->total_tasks
+            )
+            {
+
+                $batch->update([
+                    'status'=>'completed'
+                ]);
+
+            }
+
+        }
         TaskLog::create([
             'task_id'=>$this->task->id,
             'event'=>'completed',

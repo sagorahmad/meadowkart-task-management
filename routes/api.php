@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TaskController;
-
+use App\Http\Controllers\TaskBatchController;
 
 
 
@@ -23,5 +23,12 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::post('/tasks/{task}/cancel',[TaskController::class,'cancel']);
 
     Route::post('/tasks/{task}/retry',[TaskController::class,'retry']);
+
+    Route::post('/batches',
+    [TaskBatchController::class,'store']);
+
+
+    Route::get('/batches/{batch}',
+    [TaskBatchController::class,'show']);
 
 });
