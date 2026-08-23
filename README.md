@@ -5,7 +5,7 @@
 Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/sagorahmad/meadowkart-task-management.git
 
 cd meadowkart-task-management
 ```
