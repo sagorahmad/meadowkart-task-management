@@ -18,7 +18,7 @@ class TaskProcessorResolver
         => app(ReportTaskProcessor::class),
 
         'bulk_notification'
-        => app(NotificationTaskProcessor::class),
+        => app(BulkNotificationTaskProcessor::class),
 
         'data_processing'
         => app(DataProcessingTaskProcessor::class),
