@@ -4,10 +4,12 @@ namespace App\Jobs;
 
 use App\Models\Task;
 use App\Models\TaskLog;
+use App\Models\TaskBatch;
 use App\Services\TaskProcessorResolver;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 
 class ProcessTaskJob implements ShouldQueue
@@ -38,8 +40,7 @@ class ProcessTaskJob implements ShouldQueue
 
             if(
                 !$task ||
-                $task->status === 'cancelled' ||
-                $task->status === 'completed' 
+                $task->status !== 'pending'
             ){
                 return false;
             }
@@ -101,26 +102,28 @@ class ProcessTaskJob implements ShouldQueue
         if($this->task->batch_id)
         {
 
-            $batch = $this->task->batch;
+            DB::transaction(function () {
+
+                $batch = TaskBatch::where('id',$this->task->batch_id)
+                    ->lockForUpdate()
+                    ->first();
 
 
-            $batch->increment('completed_tasks');
+                $batch->increment('completed_tasks');
+
+                $batch->refresh();
 
 
-            $batch->refresh();
+                if(
+                    $batch->completed_tasks >= $batch->total_tasks
+                )
+                {
+                    $batch->update([
+                        'status'=>'completed'
+                    ]);
+                }
 
-
-            if(
-                $batch->completed_tasks >=
-                $batch->total_tasks
-            )
-            {
-
-                $batch->update([
-                    'status'=>'completed'
-                ]);
-
-            }
+            });
 
         }
         TaskLog::create([
@@ -133,6 +136,9 @@ class ProcessTaskJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
 
+        Log::error($exception);
+
+
         $task = Task::find($this->task->id);
 
 
@@ -141,14 +147,14 @@ class ProcessTaskJob implements ShouldQueue
             $task->update([
                 'status'=>'failed',
                 'failed_at'=>now(),
-                'error_message'=>$exception->getMessage()
+                'error_message'=>'Task processing failed'
             ]);
 
 
             TaskLog::create([
                 'task_id'=>$task->id,
                 'event'=>'failed',
-                'message'=>$exception->getMessage()
+                'message'=>'Task processing failed'
             ]);
         }
 

@@ -148,6 +148,18 @@ Task Processor
 Update Status
 ```
 
+Workers consume queues based on priority:
+
+critical
+
+high
+
+normal
+
+low
+
+Laravel Horizon manages Redis queue workers and monitoring.
+
 Priority queues are supported:
 
 ```
@@ -195,22 +207,17 @@ After maximum retries:
 
 # Idempotency Strategy
 
-The system prevents duplicate task execution.
+The system prevents duplicate task processing using:
 
-Implemented using:
+-   Database transactions
+-   Row-level locking (`lockForUpdate`)
+-   Task status validation
 
--   Database transaction
--   Row locking (`lockForUpdate`)
--   Status validation
+Before processing, a task must be in `pending` state.
 
-Before processing:
+Once claimed by a worker, the task changes to `processing`, preventing concurrent workers from processing the same task.
 
--   Completed tasks are ignored
--   Cancelled tasks are ignored
-
-This prevents multiple workers from processing the same task.
-
----
+For external side effects such as emails or third-party APIs, a production system could additionally use idempotency keys and operation logs to guarantee exactly-once execution.
 
 # Concurrency Considerations
 
@@ -235,6 +242,30 @@ completed
 A completed task cannot be processed again.
 
 ---
+
+# Observability
+
+Task execution events are stored in `task_logs`.
+
+Tracked events:
+
+-   Task created
+-   Task queued
+-   Processing started
+-   Retry attempted
+-   Task failed
+-   Task completed
+-   Task cancelled
+
+# Security
+
+Implemented:
+
+-   Laravel Sanctum authentication
+-   Task ownership validation
+-   User data isolation
+-   Request validation
+-   Rate limiting
 
 # Known Limitations
 

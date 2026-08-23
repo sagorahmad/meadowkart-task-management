@@ -165,10 +165,16 @@ GET /tasks
 ```json
 [
     {
-        "id": 1,
-        "title": "Monthly Report",
-        "status": "completed",
-        "priority": "high"
+        "current_page": 1,
+        "data": [
+            {
+                "id": 1,
+                "title": "Monthly Report",
+                "status": "completed",
+                "priority": "high"
+            }
+        ],
+        "total": 1
     }
 ]
 ```
