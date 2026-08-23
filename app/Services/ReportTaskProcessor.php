@@ -14,7 +14,15 @@ class ReportTaskProcessor implements TaskProcessorInterface
             "ReportTaskProcessor executed for task ".$task->id
         );
 
-        sleep(5);
 
+        if(($task->payload['force_fail'] ?? false) === true)
+        {
+            throw new \Exception(
+                "Report generation failed"
+            );
+        }
+
+
+        sleep(5);
     }
 }
