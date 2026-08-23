@@ -1,58 +1,271 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Meadowkart Task Management System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Installation
 
-## About Laravel
-
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Clone the repository:
 
 ```bash
-composer require laravel/boost --dev
+git clone <repository-url>
 
-php artisan boost:install
+cd meadowkart-task-management
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Create environment file:
 
-## Contributing
+```bash
+cp .env.example .env
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Start Docker containers:
 
-## Code of Conduct
+```bash
+docker compose up -d --build
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Generate application key:
 
-## Security Vulnerabilities
+```bash
+docker compose exec app php artisan key:generate
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+# Database Migration
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Run migrations:
+
+```bash
+docker compose exec app php artisan migrate
+```
+
+Database:
+
+-   PostgreSQL
+-   Redis
+
+---
+
+# Start Queue Worker
+
+The application uses Laravel Horizon with Redis queues.
+
+Worker starts automatically through Docker.
+
+Check worker status:
+
+```bash
+docker compose exec worker php artisan horizon:status
+```
+
+Expected:
+
+```
+Horizon is running.
+```
+
+---
+
+# Run Tests
+
+Run:
+
+```bash
+docker compose exec app php artisan test
+```
+
+Tests cover:
+
+-   Task creation
+-   Task authorization
+-   Task cancellation
+-   Task retry
+-   Task processing success
+-   Task processing failure
+
+---
+
+# Architecture Decisions
+
+Task processing follows a processor-based design.
+
+The queue job does not contain task-specific logic.
+
+Flow:
+
+```
+ProcessTaskJob
+        |
+        ↓
+TaskProcessorResolver
+        |
+        ↓
+TaskProcessorInterface
+        |
+        ↓
+--------------------------------
+ReportTaskProcessor
+
+BulkNotificationTaskProcessor
+
+DataProcessingTaskProcessor
+```
+
+New task types can be added by creating a new processor without modifying the core job logic.
+
+---
+
+# Queue Strategy
+
+Tasks are processed asynchronously using Laravel Queue and Redis.
+
+Flow:
+
+```
+API Request
+
+    ↓
+
+Create Task
+
+    ↓
+
+Dispatch Job
+
+    ↓
+
+Redis Queue
+
+    ↓
+
+Horizon Worker
+
+    ↓
+
+Task Processor
+
+    ↓
+
+Update Status
+```
+
+Priority queues are supported:
+
+```
+critical
+high
+normal
+low
+```
+
+---
+
+# Retry Strategy
+
+Failed jobs are retried automatically.
+
+Configuration:
+
+```php
+tries = 3
+
+backoff = [10,30,60]
+```
+
+Retry flow:
+
+```
+processing
+     ↓
+failed
+     ↓
+retry
+     ↓
+processing
+     ↓
+completed
+```
+
+After maximum retries:
+
+-   Task status becomes failed
+-   Error message is stored
+-   Failure log is created
+
+---
+
+# Idempotency Strategy
+
+The system prevents duplicate task execution.
+
+Implemented using:
+
+-   Database transaction
+-   Row locking (`lockForUpdate`)
+-   Status validation
+
+Before processing:
+
+-   Completed tasks are ignored
+-   Cancelled tasks are ignored
+
+This prevents multiple workers from processing the same task.
+
+---
+
+# Concurrency Considerations
+
+Multiple workers can process tasks simultaneously.
+
+To avoid race conditions:
+
+-   Database transactions are used
+-   Row-level locking prevents duplicate task claiming
+-   Task state transitions are controlled
+
+Example:
+
+```
+pending
+   ↓
+processing
+   ↓
+completed
+```
+
+A completed task cannot be processed again.
+
+---
+
+# Known Limitations
+
+-   Real-time progress updates using WebSockets are not implemented.
+-   Batch progress tracks completed tasks but does not expose individual task percentage.
+-   Advanced scheduling rules can be added in future.
+
+---
+
+# Additional Features Implemented
+
+-   Laravel Horizon monitoring
+-   Scheduled stale task cleanup
+-   Rate limiting for task creation
+-   Batch task processing
+-   Task execution history
+
+---
+
+# API Documentation
+
+API documentation is available in:
+
+```
+API.md
+```
+
+It contains:
+
+-   Authentication APIs
+-   Task APIs
+-   Batch APIs
+-   Request examples
+-   Response examples
