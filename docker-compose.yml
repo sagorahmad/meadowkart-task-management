@@ -25,7 +25,8 @@ services:
 
         volumes:
             - .:/var/www/html
-        command: php artisan queue:work --queue=critical,high,normal,low
+
+        command: php artisan horizon
 
         depends_on:
             - database
