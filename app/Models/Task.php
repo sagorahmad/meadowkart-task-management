@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+
 class Task extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'type',
         'title',
@@ -20,6 +23,7 @@ class Task extends Model
         'failed_at',
         'error_message',
         'user_id',
+        'batch_id',
     ];
 
     protected $casts = [
@@ -38,5 +42,9 @@ class Task extends Model
     public function logs(): HasMany
     {
         return $this->hasMany(TaskLog::class);
+    }
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(TaskBatch::class);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\TaskLog;
 use Illuminate\Http\Request;
 use App\Jobs\ProcessTaskJob;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class TaskController extends Controller
 {
@@ -48,10 +49,11 @@ class TaskController extends Controller
 
         if($request->filled('search'))
         {
-            $query->where(
-                'title',
-                'ILIKE',
-                '%'.$request->search.'%'
+            $query->whereRaw(
+                'LOWER(title) LIKE ?',
+                [
+                    '%'.strtolower($request->search).'%'
+                ]
             );
         }
 
@@ -76,12 +78,33 @@ class TaskController extends Controller
         }
 
 
-        return $query
-            ->orderBy(
-                $request->get('sort','created_at'),
-                $request->get('direction','desc')
-            )
-            ->paginate(10);
+       $allowedSorts = [
+        'created_at',
+        'updated_at',
+        'priority',
+        'status'
+    ];
+
+
+    $sort = $request->get('sort','created_at');
+
+    if(!in_array($sort,$allowedSorts))
+    {
+        $sort = 'created_at';
+    }
+
+
+    $direction = $request->get('direction','desc');
+
+    if(!in_array($direction,['asc','desc']))
+    {
+        $direction = 'desc';
+    }
+
+
+    return $query
+    ->orderBy($sort,$direction)
+    ->paginate(10);
     }
 
     public function show(Request $request, Task $task)
@@ -95,12 +118,18 @@ class TaskController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'type'=>'required|string',
+            'type'=>[
+                'required',
+                'string',
+                'in:report_generation,bulk_notification,data_processing'
+            ],
             'title'=>'required|string',
             'payload'=>'nullable|array',
             'priority'=>'nullable|in:low,normal,high,critical'
         ]);
 
+
+        DB::transaction(function () use ($request, $data, &$task) {
 
         $task = Task::create([
 
@@ -112,6 +141,7 @@ class TaskController extends Controller
             'status'=>'pending'
 
         ]);
+
 
         TaskLog::create([
             'task_id'=>$task->id,
@@ -126,8 +156,11 @@ class TaskController extends Controller
             'message'=>'Task added to queue'
         ]);
 
+    });
 
-        ProcessTaskJob::dispatch($task)->onQueue($task->priority);
+
+    ProcessTaskJob::dispatch($task)
+    ->onQueue($task->priority);
 
         return response()->json([
             'id'=>$task->id,
@@ -140,26 +173,36 @@ class TaskController extends Controller
         abort_if($task->user_id !== $request->user()->id,403);
 
 
-        if(in_array($task->status, [
-            'completed',
-            'failed',
-            'cancelled'
-        ]))
-        {
-            return response()->json([
-                'message'=>'Task cannot be cancelled'
-            ],400);
-        }
+        DB::transaction(function () use ($task) {
+
+            $task = Task::where('id',$task->id)
+                ->lockForUpdate()
+                ->first();
 
 
-        $task->update([
-            'status'=>'cancelled'
-        ]);
-        TaskLog::create([
-            'task_id'=>$task->id,
-            'event'=>'cancelled',
-            'message'=>'Task cancelled by user'
-        ]);
+            if(in_array($task->status,[
+                'completed',
+                'failed',
+                'cancelled'
+            ]))
+            {
+                return;
+            }
+
+
+            $task->update([
+                'status'=>'cancelled'
+            ]);
+
+
+            TaskLog::create([
+                'task_id'=>$task->id,
+                'event'=>'cancelled',
+                'message'=>'Task cancelled by user'
+            ]);
+
+        });
+
 
         return response()->json([
             'message'=>'Task cancelled successfully',
@@ -167,32 +210,47 @@ class TaskController extends Controller
         ]);
     }
 
-
     public function retry(Request $request, Task $task)
     {
         abort_if($task->user_id !== $request->user()->id,403);
 
-        if($task->status !== 'failed')
-        {
-            return response()->json([
-                'message'=>'Only failed tasks can be retried'
-            ],400);
-        }
 
-        TaskLog::create([
-            'task_id'=>$task->id,
-            'event'=>'retry_attempt',
-            'message'=>'Retry attempt #'.($task->attempts + 1)
-        ]);
-        $task->update([
-            'status'=>'pending',
-            'attempts'=>0,
-            'error_message'=>null,
-            'failed_at'=>null
-        ]);
+        DB::transaction(function () use ($task) {
+
+            $task = Task::where('id',$task->id)
+                ->lockForUpdate()
+                ->first();
 
 
-        ProcessTaskJob::dispatch($task)->onQueue($task->priority);
+            if($task->status !== 'failed')
+            {
+                abort(400, 'Only failed tasks can be retried');
+            }
+
+
+            TaskLog::create([
+                'task_id'=>$task->id,
+                'event'=>'retry_attempt',
+                'message'=>'Retry attempt #'.($task->attempts + 1)
+            ]);
+
+
+            $task->update([
+                'status'=>'pending',
+                'attempts'=>0,
+                'error_message'=>null,
+                'failed_at'=>null
+            ]);
+
+        });
+
+
+        $task->refresh();
+
+
+        ProcessTaskJob::dispatch($task)
+            ->onQueue($task->priority);
+
 
         return response()->json([
             'message'=>'Task queued for retry',
