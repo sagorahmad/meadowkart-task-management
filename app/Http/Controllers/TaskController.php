@@ -249,7 +249,8 @@ class TaskController extends Controller
 
 
         ProcessTaskJob::dispatch($task)
-            ->onQueue($task->priority);
+            ->onQueue($task->priority)
+            ->afterCommit();
 
 
         return response()->json([
